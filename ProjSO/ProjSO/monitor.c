@@ -6,4 +6,5 @@
 //  Copyright © 2017 Alex Faria. All rights reserved.
 //
 
-#include "monitor.h"
+#include "Header.h"
+FILE * Resultado;
