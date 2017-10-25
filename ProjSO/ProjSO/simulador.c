@@ -15,21 +15,49 @@
 #include "Header.h"
 #include <stdio.h>
 
-int INICIO_FINAL, TEMPO_SIMULACAO, TEMPO_MEDIO_CHEGADA_CLIENTES, PROB_DESISTE_GUICHE,  PROB_DESISTE_FILA,  TEMPO_VIAGEM, CAPACIDADE_CARROS, NUMERO_CARROS;
+int INICIO_FINAL,
+TEMPO_SIMULACAO,
+TEMPO_MEDIO_CHEGADA_CLIENTES,
+PROB_DESISTE_GUICHE,
+PROB_DESISTE_FILA,
+TEMPO_VIAGEM,
+CAPACIDADE_CARROS,
+NUMERO_CARROS;
+
+
+int * lerConfig(char * ficheiro){
+    
+    int * a = (int *) malloc (sizeof (int) * 10);
+    FILE * fp = fopen (ficheiro, "r"); //r - read
+    if(fp == NULL){
+        printf("ERRO - Impossivel abrir ficheiro\n");
+        abort();
+    }
+    int num, i = 0;
+    char name[100], buff[500];
+    while (fgets(buff, sizeof buff, fp) != NULL){
+        if(sscanf(buff, "%[^=]=%d", name, &num) == 2)
+            a[i++]=num;
+    }
+    fclose(fp);
+    return a;
+}
 
 int main(int argc, char *argv[]){
     
     
     
-    //interpretacao do ficheiro de configuraçao
-    int *conf = lerConfig(argv[1]);
-    INICIO_FINAL                     = conf[0];
-    TEMPO_SIMULACAO                  = conf[1];
-    TEMPO_MEDIO_CHEGADA_CLIENTES     = conf[2];
-    PROB_DESISTE_GUICHE              = conf[3];
-    TEMPO_VIAGEM                     = conf[7];
-    CAPACIDADE_CARROS                = conf[8];
-    NUMERO_CARROS                    = conf[9];
+    //Upload do ficheiro de configuração
+    int * configuracao = lerConfig("ConfigSim.txt");
+    INICIO_FINAL                     = configuracao[0];
+    TEMPO_SIMULACAO                  = configuracao[1];
+    TEMPO_MEDIO_CHEGADA_CLIENTES     = configuracao[2];
+    PROB_DESISTE_GUICHE              = configuracao[3];
+    TEMPO_VIAGEM                     = configuracao[7];
+    CAPACIDADE_CARROS                = configuracao[8];
+    NUMERO_CARROS                    = configuracao[9];
+    
+    printf("INICIO_FINAL= %d\nTEMPO_SIMULACAO= %d\n", INICIO_FINAL,TEMPO_SIMULACAO);
 
     return 0;
 }

@@ -7,4 +7,6 @@
 //
 
 #include "Header.h"
-FILE * Resultado;
+
+
+//FILE * Resultado;
