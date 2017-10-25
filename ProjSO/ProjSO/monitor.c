@@ -35,11 +35,11 @@ void escrita(){
 }
 
 
-int main()
+/*int main()
 {
     escrita();
     printf("Ficheiro Logs.txt criado com exito!\n");
     
     return 0;
     
-}
+}*/
