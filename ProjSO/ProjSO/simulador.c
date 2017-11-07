@@ -22,7 +22,7 @@ int tempoGuiche, tempoViagem, tempoSimulacao, capacidadeFila, capacidadeCarro, p
 void readFile(){
     FILE* configFile;
     
-    configFile = fopen("/Users/alex/Documents/GitHub/ProjetoSistemasOperativos20172018/ProjSO/ProjSO/ConfigSim.txt", "r"); //r = read
+    configFile = fopen("configsim.txt", "r"); //r = read
     
     if(configFile != NULL) {
         char linha[50];
@@ -72,7 +72,7 @@ void readFile(){
 
 int main(){
     readFile();
-    writeReport();
+    
     
     printf("O tempo de espera no guiche e': %d\n", tempoGuiche);
     printf("A viagem tem a duracao: %d\n", tempoViagem);

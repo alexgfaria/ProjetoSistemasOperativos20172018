@@ -29,6 +29,8 @@
 		FA6CED921FA0A16D00102778 /* monitor.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = monitor.c; sourceTree = "<group>"; };
 		FA6CED941FA0A19D00102778 /* simulador.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = simulador.c; sourceTree = "<group>"; };
 		FA6CED9C1FA1445E00102778 /* project.xcworkspace */ = {isa = PBXFileReference; lastKnownFileType = wrapper.workspace; name = project.xcworkspace; path = ProjSO.xcodeproj/project.xcworkspace; sourceTree = "<group>"; };
+		FACEB6361FB20958009F6933 /* resultado.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = resultado.txt; sourceTree = "<group>"; };
+		FACEB6371FB20960009F6933 /* configsim.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = configsim.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +64,8 @@
 		FA6CED881FA0981E00102778 /* ProjSO */ = {
 			isa = PBXGroup;
 			children = (
+				FACEB6371FB20960009F6933 /* configsim.txt */,
+				FACEB6361FB20958009F6933 /* resultado.txt */,
 				FA6CED901FA0A15C00102778 /* Header.h */,
 				FA6CED921FA0A16D00102778 /* monitor.c */,
 				FA6CED941FA0A19D00102778 /* simulador.c */,

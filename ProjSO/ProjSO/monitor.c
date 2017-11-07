@@ -8,10 +8,12 @@
 
 #include "Header.h"
 
+int tempoGuiche, tempoViagem, tempoSimulacao, capacidadeFila, capacidadeCarro, probDesisteGuiche, probDesisteFila;
+
 void writeReport(){
     
     FILE* log;
-    log = fopen("Resultado.txt", "w");
+    log = fopen("resultado.txt", "w");
     
     if(log == NULL){
         printf("ERRO AO CRIAR FICHEIRO");
@@ -31,4 +33,9 @@ void writeReport(){
     printf("Relatorio criado com sucesso\n");
     fprintf(log, "---SIMULAÇÃO TERMINADA---\n\n");
     fclose(log);
+}
+
+int main(){
+    writeReport();
+    return 0;
 }
