@@ -8,38 +8,27 @@
 
 #include "Header.h"
 
-/*//apontador para FILE
-FILE *fp;
-*/
-
-
-void escrita(){
-    FILE* logs;
+void writeReport(){
     
-    logs = fopen("Logs.txt", "a");
+    FILE* log;
+    log = fopen("Resultado.txt", "w");
     
-    if(logs == NULL){
+    if(log == NULL){
         printf("ERRO AO CRIAR FICHEIRO");
     }
-    else{
-        fprintf(logs, "---SIMULAÇÃO INICIADA---\n");
-        fprintf(logs, "TEMPO_ESPERA:30\n");
-        fprintf(logs, "TEMPO_DISCO:40\n");
-        fprintf(logs, "CAPACIDADE_FILA:20\n");
-        fprintf(logs, "CAPACIDADE_SALA:10\n");
-        fprintf(logs, "PROB_DESISTE_FILA:100\n");
-        fprintf(logs, "---SIMULAÇÃO TERMINADA---\n");
+    else {
+        
+        fprintf(log, "------ SIM BEGIN ------\n");
+        fprintf(log, "TEMPO_GUICHE:%d\n", tempoGuiche);
+        fprintf(log, "TEMPO_VIAGEM:%d\n", tempoViagem);
+        fprintf(log, "TEMPO_SIMULACAO:%d\n", tempoSimulacao);
+        fprintf(log, "CAPACIDADE_FILA:%d\n", capacidadeFila);
+        fprintf(log, "CAPACIDADE_CARRO:%d\n", capacidadeCarro);
+        fprintf(log, "PROB_DESISTE_GUICHE:%d\n", probDesisteGuiche);
+        fprintf(log, "PROB_DESISTE_FILA:%d\n", probDesisteFila);
+        fprintf(log, "----- SIM FINISHED -----\n");
     }
-    
-    fclose(logs);
+    printf("Relatorio criado com sucesso\n");
+    fprintf(log, "---SIMULAÇÃO TERMINADA---\n\n");
+    fclose(log);
 }
-
-
-/*int main()
-{
-    escrita();
-    printf("Ficheiro Logs.txt criado com exito!\n");
-    
-    return 0;
-    
-}*/

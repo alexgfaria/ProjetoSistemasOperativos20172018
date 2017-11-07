@@ -14,7 +14,17 @@
 
 
 
+void writeReport(void);
+void readFile(void);
+int getTempoGuiche(void);
+int getTempoViagem(void);
+int getTempoSimulacao(void);
+int getCapacidadeFila(void);
+int getCapacidadeCarro(void);
+int getProbDesisteGuiche(void);
+int getProbDesisteFila(void);
 
+extern int tempoGuiche, tempoViagem, tempoSimulacao, capacidadeFila, capacidadeCarro, probDesisteGuiche, probDesisteFila;
 
 
 #endif /* Header_h */
