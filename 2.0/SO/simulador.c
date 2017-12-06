@@ -1,7 +1,5 @@
-
 #include <time.h>
 #include <stdlib.h>
-
 #include <semaphore.h>
 #include <string.h>
 #include <pthread.h>
@@ -9,48 +7,40 @@
 #include "unix.h"
 #include "util.h"
 
-
-//variaveis globais
-
-
-
-
-
+//variáveis
 int num_cliente, num_carro, num_emb, carro, carros_em_servico;
-	
+
 time_t start;
-	
+
 struct sockaddr_un serv_addr;
 int sockfd, servlen;
 
-//variaveis com informacao da configuracao
+//var de configuração
 int INICIO_FINAL, TEMPO_SIMULACAO, TEMPO_MEDIO_CHEGADA_CLIENTES, PROB_DESISTE_ESPERA,  PROB_DESISTE_MEDO,  TEMPO_VIAGEM, CAPACIDADE_CARROS, NUMERO_CARROS;
 
-int corre=0,pausa=0,controlo_pausa;
+int corre = 0, pausa = 0, controlo_pausa;
 
 
-	//funcao: tarefa_cliente
 
-void *tarefa_cliente(void *ptr)
-{
+
+void * tarefa_cliente(void * ptr){
 	pthread_detach(pthread_self());
 	int car, g;
 	time_t temp_i;
 	char buffer_c[256];
 	int tem_esp = rand()%10; // entre 0 e 10 minutos de espera
-	
-	
-	
+
+
+
 	int num_cli = num_cliente++;
 	printf("O cliente %d chegou a fila de espera.\n", num_cli);
 	sprintf(buffer_c, "%d CHEGADA %d 0\n", (int)time(0), num_cli);
 	send(sockfd,buffer_c,sizeof(buffer_c),0);
-	
+
 	temp_i = time(0);
-	
-		
-	//desistencia por tempo
-	
+
+	// ---------- DESISTÊNCIAS ----------------------
+	//TEMPO
 	if((int)(time(0) - temp_i) > tem_esp)
 	{
 		g = rand()%100;
@@ -66,81 +56,69 @@ void *tarefa_cliente(void *ptr)
 		}
 	}
 
-	
-	
-	//desistencia por medo
-	
+
+
+	//MEDO
 	g = rand()%100;
-	if(g <= PROB_DESISTE_MEDO)
-	{
+	if(g <= PROB_DESISTE_MEDO){
 		printf("O cliente %d entrou na zona de embarque.\n",num_cli);
 		printf("O cliente %d desistiu porque ficou com medo.\n", num_cli);
 		sprintf(buffer_c, "%d DESISTE_EMBARQUE\n", (int)time(0));
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
 		return NULL;
 	}
-	
+
 	num_emb++;
-	
+
 	if ( num_emb < CAPACIDADE_CARROS)
-		
+
 
 	printf("O cliente %d entrou na zona de embarque.\n",num_cli);
 	sprintf(buffer_c, "%d ENTRA_EMBARQUE %d 0\n", (int)(time(0)-temp_i), num_cli);
 	send(sockfd,buffer_c,sizeof(buffer_c),0);
-	
+
 	car = carro;
 	printf("O cliente %d entrou no carro %d.\n", num_cli, car);
 	sprintf(buffer_c, "%d EMBARQUE %d %d\n", (int)time(0), num_cli, car);
 	send(sockfd,buffer_c,sizeof(buffer_c),0);
-	
-	
+
+
 	printf("O cliente %d saiu do carro %d.\n", num_cli, car);
 	sprintf(buffer_c, "%d DESEMBARQUE %d %d\n", (int)time(0), num_cli, car);
 	send(sockfd,buffer_c,sizeof(buffer_c),0);
-	
-	
+
+
 	return NULL;
 }
 
 
-//funcao: tarefa_carro
 
-void *tarefa_carro(void *ptr)
-{
-	
+
+void * tarefa_carro(void * ptr){
+
 	pthread_detach(pthread_self());
 	int id = num_carro++;
 	char buffer_c[256];
 	time_t hora_partida, hora_i;
 	char variavel[20] = "carro";
-	
 
-	
-	void inicia_viagem()
-	{
+
+
+	void inicia_viagem(){
 		int i;
 		for(i = 0; i < CAPACIDADE_CARROS; i++)
-			
-			
 		printf("O carro %d iniciou viagem.\n", id);
 		sprintf(buffer_c, "%d ARRANQUE %d\n", (int)time(0), id);
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
-		
-		
 		hora_partida = time(0);
-		
-		while((int)(time(0) - hora_partida) < TEMPO_VIAGEM); 
+		while((int)(time(0) - hora_partida) < TEMPO_VIAGEM);
 		printf("O carro %d terminou a viagem e chegou a zona de desembarque.\n", id);
 		sprintf(buffer_c, "%d FINAL_VIAGEM %d\n", (int)time(0), id);
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
 	}
-	
-	
-	
-	while(1)
-	{
-		
+
+
+	while(1){
 		printf("O carro %d ficou em lista de espera.\n", id);
 		sprintf(buffer_c, "%d ESPERA %d\n", (int)time(0), id);
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
@@ -149,55 +127,48 @@ void *tarefa_carro(void *ptr)
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
 		int i;
 		num_emb = 0;
-		
+
 		if(i == 0)
 		for(i = 0; i < CAPACIDADE_CARROS; i++)
-		carro = id;	
+		carro = id;
 		hora_i = time(0);
-		
-		if(time(0) > start + TEMPO_SIMULACAO)
-		{	
-			usleep(100000);	
-			if(num_emb == 0)
-			{
+
+		if(time(0) > start + TEMPO_SIMULACAO){
+			usleep(100000);
+			if(num_emb == 0){
 				printf("O parque ja fechou e nao tem clientes em espera.\n");
 				printf("O carro %d vai ser arrumado.\n", id);
 				carros_em_servico--;
 				return NULL;
 			}
-			
+
 			for(i = 0; i < CAPACIDADE_CARROS; i++)
 			printf("O carro %d iniciou viagem.\n", id);
 			sprintf(buffer_c, "%d ARRANQUE %d\n", (int)time(0), id);
 			send(sockfd,buffer_c,sizeof(buffer_c),0);
-			
-			
+
+
 			hora_partida = time(0);
-			while((int)(time(0) - hora_partida) < TEMPO_VIAGEM); 
+			while((int)(time(0) - hora_partida) < TEMPO_VIAGEM);
 			printf("O carro %d terminou a viagem e chegou a zona de desembarque.\n", id);
 			sprintf(buffer_c, "%d FINAL_VIAGEM %d\n", (int)time(0), id);
 			send(sockfd,buffer_c,sizeof(buffer_c),0);
 		}
-		else
-		{	
+		else{
 			while(num_emb < CAPACIDADE_CARROS && time(0) < start + TEMPO_SIMULACAO);
-			if(num_emb == CAPACIDADE_CARROS)
-			{
+			if(num_emb == CAPACIDADE_CARROS){
 					usleep(100000);
 					inicia_viagem();
 			}
-			else
-			{
-					usleep(100000);	
+			else{
+					usleep(100000);
 
-					if(num_emb == 0)
-					{
+					if(num_emb == 0){
 						printf("O parque ja fechou e nao tem clientes em espera.\n");
 						printf("O carro %d vai ser arrumado.\n", id);
 						carros_em_servico--;
 						return NULL;
-					}			
-			
+					}
 					inicia_viagem();
 			}
 		}
@@ -205,35 +176,30 @@ void *tarefa_carro(void *ptr)
 	return NULL;
 }
 
-//Funcao que trata dos pedidos vindos do Monitor 
-void *recebe_comandos_monitor(void *arg)
-{
+// COMUNICAÇÃO COM MONITOR
+void * monitor_link(void * arg){
 	struct sockaddr_un cli_addr;
 	int done, n, id;
 
-	int sockfd=*((int *) arg), clilen=sizeof(cli_addr);
+	int sockfd = * ((int *) arg), clilen = sizeof(cli_addr);
 
 	char buffer[256];
-	
+
 	//Ciclo que fica a espera dos pedidos dos Monitor, para lhe dar resposta adequada
-	while(1)
-	{
-		done=0;	
-		if((n=recv(sockfd, buffer, sizeof(buffer), 0)) <= 0)
-		{
-			if(n < 0) 
+	while(1){
+		done=0;
+		if((n=recv(sockfd, buffer, sizeof(buffer), 0)) <= 0){
+			if(n < 0)
 				perror("recv error");
 			done=1;
 		}
 		buffer[n]='\0';
 
-		if(!strcmp(buffer, "termina\n"))
-		{
+		if(!strcmp(buffer, "termina\n")){
 			corre=0;
 			exit(1);
 		}
-		else
-		{	
+		else{
 			if(!strcmp(buffer, "inicio\n"))
 				corre = 1;
 			if(!strcmp(buffer, "pausa\n"))
@@ -245,37 +211,34 @@ void *recebe_comandos_monitor(void *arg)
 	return NULL;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
 
 	srand(time(NULL));
-	
-	num_cliente=1;
-	num_carro=1;
+
+	num_cliente = 1;
+	num_carro = 1;
 	carro = NUMERO_CARROS;
 	num_emb = 0;
-	
-	if(argc<2)
-	{
-		printf("Falta o ficheiro de configuração. Não é possível continuar.");
+
+	if(argc<2){
+		printf("ERRO: FICHEIRO DE CONFIGURAÇÃO EM FALTA");
 		return 1;
 	}
-	else
-	{
-	
+	else {
+
 		//interpretacao do ficheiro de configuraçao
-		int *conf = leitura_configuracao(argv[1]);
-		INICIO_FINAL					= conf[0];
-		TEMPO_SIMULACAO					= conf[1];
-		TEMPO_MEDIO_CHEGADA_CLIENTES	= conf[2];
-		PROB_DESISTE_ESPERA				= conf[3];
-		TEMPO_VIAGEM					= conf[7];
-		CAPACIDADE_CARROS				= conf[8];
-		NUMERO_CARROS					= conf[9];
-		
-		
-		
-		
+		int * conf = leitura_configuracao(argv[1]);
+		INICIO_FINAL = conf[0];
+		TEMPO_SIMULACAO = conf[1];
+		TEMPO_MEDIO_CHEGADA_CLIENTES = conf[2];
+		PROB_DESISTE_ESPERA	= conf[3];
+		TEMPO_VIAGEM = conf[7];
+		CAPACIDADE_CARROS = conf[8];
+		NUMERO_CARROS	= conf[9];
+
+
+
+
 		//criacao do socket e ligação
 		if((sockfd=socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
 			perror("Simulador: cant open socket stream");
@@ -287,42 +250,38 @@ int main(int argc, char *argv[])
 
 		//Criacao da tarefa que ira tratar dos pedidos enviados pelo Monitor
 		pthread_t thread;
-		pthread_create(&thread, NULL, &recebe_comandos_monitor, &sockfd);
-		
+		pthread_create(&thread, NULL, &monitor_link, &sockfd);
+
 		while(!corre);
 
 		int i, r, h;
 		char buffer[256];
 		carros_em_servico = NUMERO_CARROS;
-		
-		
+
+
 		start = time(0);
 		sprintf(buffer, "%d INICIO\n", (int)start);
 		send(sockfd,buffer,sizeof(buffer),0);
-		
+
 		TEMPO_SIMULACAO *= 60;
-		
-		for(i = 0; i < NUMERO_CARROS; i++)
-		{
+
+		for(i = 0; i < NUMERO_CARROS; i++){
 			pthread_create(&thread, NULL, &tarefa_carro, &sockfd);
 		}
-			
-		while((int)(time(0) - start) < TEMPO_SIMULACAO)
-		{
+
+		while((int)(time(0) - start) < TEMPO_SIMULACAO){
 				pthread_create(&thread, NULL, &tarefa_cliente, &sockfd);
-			
+
 			h = rand()%3;
 			h = h * 100000;
 				h = 0 - h;
-			usleep((TEMPO_MEDIO_CHEGADA_CLIENTES*1000000) + h);	
-			
-			if(pausa)
-			{		
+			usleep((TEMPO_MEDIO_CHEGADA_CLIENTES*1000000) + h);
+
+			if(pausa){
 				controlo_pausa = 1;
 			}
 			while(pausa);
-			if(controlo_pausa)
-			{
+			if(controlo_pausa){
 				controlo_pausa = 0;
 			}
 
@@ -335,8 +294,8 @@ int main(int argc, char *argv[])
 		send(sockfd,buffer,sizeof(buffer),0);
 
 		while(corre);
-		
 		close(sockfd);
-	
-	}return 0;
+
+	}
+	return 0;
 }

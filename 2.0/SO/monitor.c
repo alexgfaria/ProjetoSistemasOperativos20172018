@@ -7,19 +7,27 @@
 FILE * relatorio;
 
 //variáveis globais para a estatística
-int num_fila_normal=0, num_carros=2, num_cli_normal=0,  desiste_espera=0, desiste_medo=0, num_viagens=0, inicio_simulacao=0, fim_simulacao=0, soma_espera_normal=0, esperou_normal=0;
+int num_fila_normal = 0,
+		num_carros = 2,
+		num_cli_normal = 0,
+		desiste_espera = 0,
+		desiste_medo = 0,
+		num_viagens = 0,
+		inicio_simulacao = 0,
+		fim_simulacao = 0,
+		soma_espera_normal = 0,
+		esperou_normal = 0;
 
-//variáveis globais para controlo de execução
-int corre=0, pausa=0;
+//VAR DE CONTROLO
+int emExecucao = 0, bloqueado = 0;
 
 
-void mostra_estatistica()
-{
-	if(corre && !pausa)
+void estatistica(){
+	if(emExecucao && !bloqueado)
 		printf(" 1. Estado atual: Simulacao a decorrer.\n");
 	else
 	{
-		if(pausa)
+		if(bloqueado)
 			printf(" 1. Estado atual: Simulação em pausa.\n");
 		else
 			printf(" 1. Estado atual: Simulação terminada.\n");
@@ -41,9 +49,9 @@ void *escuta_comunicacao(void *arg)
 	int sockfd=*((int *) arg);
 	int msg, tempo=0, num_comandos, id, com;
 	char buffer[256],comando[20];
-	
+
 	//ciclo que fica à espera de mensagens do simulador
-	
+
 	while(1)
 	{
 		if((msg=recv(sockfd, buffer, sizeof(buffer), 0)) <= 0)
@@ -58,7 +66,7 @@ void *escuta_comunicacao(void *arg)
 
 			num_comandos = sscanf(buffer,"%d %s %d %d", &tempo, comando, &id, &com);
 
-			if(num_comandos>0) 
+			if(num_comandos>0)
 			{
 				if(!strcmp(comando,"INICIO"))
 				{
@@ -76,7 +84,7 @@ void *escuta_comunicacao(void *arg)
 				{
 						soma_espera_normal += tempo;
 						esperou_normal++;
-					
+
 				}
 				else if(!strcmp(comando,"DESISTE_EMBARQUE"))
 				{
@@ -92,7 +100,7 @@ void *escuta_comunicacao(void *arg)
 //função principal do monitor
 
 int main(int argc, char *argv[])
-{	
+{
 	struct sockaddr_un serv_addr, cli_addr;
 	int sockfd, servlen, newsockfd;
 
@@ -115,15 +123,15 @@ int main(int argc, char *argv[])
 		perror("accept error");
 
 	//criacao da tarefa que ira tratar da comunicação com o simulador
-	
+
 	pthread_t thread;
 	pthread_create(&thread, NULL, &escuta_comunicacao, &newsockfd);
 
 	//Ciclo que espera pela informacao vinda da consola
-	
+
 	printf("%s",menu);
 
-	unlink("relatorio.log");	
+	unlink("relatorio.log");
 	relatorio=fopen("relatorio.log", "a");
 
 	do
@@ -140,33 +148,32 @@ int main(int argc, char *argv[])
 
 		if(!strcmp (buffer, "inicio\n"))
 		{
-			corre=1;
-			pausa=0;
+			emExecucao=1;
+			bloqueado=0;
 		}
 		if(!strcmp (buffer, "pausa\n"))
 		{
-			pausa=1;
+			bloqueado=1;
 			printf("Simulacao em pausa - \"retomar\" para continuar\n");
 		}
 		if(!strcmp (buffer, "retomar\n"))
 		{
-			pausa=0;
+			bloqueado=0;
 		}
 		if(!strcmp (buffer, "estado\n"))
 		{
-			mostra_estatistica();
+			estatistica();
 		}
 	}
 	while(strcmp (buffer, "sair\n"));
-	
-	corre = 0;
-	pausa = 0;
+
+	emExecucao = 0;
+	bloqueado = 0;
 
 	printf("\nExecução terminou.\n\n");
-	mostra_estatistica();
+	estatistica();
 	fclose(relatorio);
 	close(sockfd);
 
 	return 0;
 }
-
