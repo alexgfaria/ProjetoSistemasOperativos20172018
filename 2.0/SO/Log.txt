@@ -1,0 +1,6 @@
+ 2. Tamanho atual da fila de espera para Clientes : 0
+ 3. Número atual de Carros: 0
+ 4. Clientes: 0
+ 5. Desistências na Fila de espera: 0
+ 6. Desistências Por medo: 0
+ 7. Total de desistências: 0
