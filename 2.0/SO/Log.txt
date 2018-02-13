@@ -1,6 +1,12 @@
- 2. Tamanho atual da fila de espera para Clientes : 0
- 3. Número atual de Carros: 0
- 4. Clientes: 0
- 5. Desistências na Fila de espera: 0
- 6. Desistências Por medo: 0
- 7. Total de desistências: 0
+- Estado atual=> Simulação terminada!
+- Tamanho da fila de espera para clientes normais: 59
+- Tamanho da fila de espera para clientes prioritários: 3
+- Clientes normais: 59
+- Clientes prioritários: 3
+- Total de clientes: 62
+- Desistências na fila de espera: 1
+- Desistências por medo: 3
+- Total de desistências: 4
+- Número de viagens: 55
+- Tempo médio de espera de clientes normais: 5.5 minutos
+- Tempo médio de espera de clientes prioritários: 1.0 minutos

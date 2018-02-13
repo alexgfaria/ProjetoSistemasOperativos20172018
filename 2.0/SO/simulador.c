@@ -7,86 +7,132 @@
 #include "unix.h"
 #include "util.h"
 
-//variáveis
-int num_cliente, num_carro, num_emb, carro, carros_em_servico;
+
+//sem_t guicheVIP;   NÃO UTILIZADO
+sem_t guiche;
+sem_t embarqueCarro;
+sem_t carroControlo;
+sem_t desembarqueCarro;
+sem_t semClientes;
+
+pthread_mutex_t mutex;
+
+int numCliente, numCarro, numEmbarque, filaVIP, carro, carrosEmUso;
 
 time_t start;
 
 struct sockaddr_un serv_addr;
 int sockfd, servlen;
 
-//var de configuração
-int INICIO_FINAL, TEMPO_SIMULACAO, TEMPO_MEDIO_CHEGADA_CLIENTES, PROB_DESISTE_ESPERA,  PROB_DESISTE_MEDO,  TEMPO_VIAGEM, CAPACIDADE_CARROS, NUMERO_CARROS;
+//Variáveis da configuração
+int INICIO_FINAL,
+		TEMPO_SIMULACAO,
+		TEMPO_MEDIO_CHEGADA_CLIENTES,
+		PROB_DESISTE_ESPERA,
+		PROB_DESISTE_ESPERA_VIP,
+		PROB_DESISTE_MEDO,
+		PROB_DESISTE_MEDO_VIP,
+		TEMPO_VIAGEM,
+		CAPACIDADE_CARROS,
+		NUMERO_CARROS;
 
-int corre = 0, pausa = 0, controlo_pausa;
+int emExecucao = 0,
+		pausa 		 = 0,
+		pauseControlo;
 
 
 
 
-void * tarefa_cliente(void * ptr){
-	pthread_detach(pthread_self());
-	int car, g;
+
+
+// ---------------------------------------- CLIENTE PRIORITÁRIO ---------------------------------------------------
+void * clienteVIP(void * ptr){
+	pthread_detach(pthread_self()); //cria espaço
+	int carro2v, num;
 	time_t temp_i;
+	int tempoDeEspera = rand()%10; // entre 0 e 10 minutos de espera
 	char buffer_c[256];
-	int tem_esp = rand()%10; // entre 0 e 10 minutos de espera
 
-
-
-	int num_cli = num_cliente++;
-	printf("O cliente %d chegou a fila de espera.\n", num_cli);
-	sprintf(buffer_c, "%d CHEGADA %d 0\n", (int)time(0), num_cli);
+	//...Secção crítica...
+	pthread_mutex_lock(&mutex);
+	int numClienteVIP = numCliente++;
+	filaVIP++;
+	printf("O cliente %d chegou à fila de espera.\n", numClienteVIP);
+	//1 indica que é VIP
+	sprintf(buffer_c, "%d CHEGADA %d 1\n", (int)time(0), numClienteVIP);
 	send(sockfd,buffer_c,sizeof(buffer_c),0);
-
 	temp_i = time(0);
+	pthread_mutex_unlock(&mutex);
+	//...fim da secção crítica...
+	sem_wait(&semClientes);
 
-	// ---------- DESISTÊNCIAS ----------------------
-	//TEMPO
-	if((int)(time(0) - temp_i) > tem_esp)
-	{
-		g = rand()%100;
-		if(g <= PROB_DESISTE_ESPERA)
-		{
-			if(tem_esp == 1)
-				printf("O cliente %d desistiu ao fim de %d minuto a espera.\n", num_cli, tem_esp);
-			else
-				printf("O cliente %d desistiu ao fim de %d minutos a espera.\n", num_cli, tem_esp);
-			sprintf(buffer_c, "%d DESISTE_FILA %d 0\n", (int)time(0), num_cli);
-			send(sockfd,buffer_c,sizeof(buffer_c),0);
+
+	//...secção crítica...
+	pthread_mutex_lock(&mutex);
+
+
+		// ---------- Desiste por tempo à espera --------------------
+		if((int)(time(0) - temp_i) > tempoDeEspera){
+			num = rand()%100;
+			if(num <= PROB_DESISTE_ESPERA_VIP){
+				if(tempoDeEspera == 1) printf("O cliente %d desistiu ao fim de %d minutos à espera.\n", numClienteVIP, tempoDeEspera);
+			else printf("O cliente %d desistiu ao fim de %d minutos à espera.\n", numClienteVIP, tempoDeEspera);
+			sprintf(buffer_c, "%d DESISTE_FILA %d 1\n", (int)time(0), numClienteVIP);
+			send(sockfd, buffer_c, sizeof(buffer_c), 0);
+			filaVIP--;
+			sem_post(&semClientes); //desbloqueia o semáforo dos clientes (inicializado no main())
+			pthread_mutex_unlock(&mutex);
+			//...fim da secção crítica
+
+
 			return NULL;
 		}
 	}
 
+	filaVIP--; //retira cliente da fila VIP
 
 
-	//MEDO
-	g = rand()%100;
-	if(g <= PROB_DESISTE_MEDO){
-		printf("O cliente %d entrou na zona de embarque.\n",num_cli);
-		printf("O cliente %d desistiu porque ficou com medo.\n", num_cli);
+
+
+	//------ DESISTE MEDO ----------
+	num = rand()%100;
+	if(num <= PROB_DESISTE_MEDO_VIP){
+		printf("O cliente %d entrou na zona de embarque.\n",numClienteVIP);
+		printf("O cliente %d desistiu porque ficou com medo.\n", numClienteVIP);
 		sprintf(buffer_c, "%d DESISTE_EMBARQUE\n", (int)time(0));
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
+		sem_post(&semClientes); //desbloqueia semáforo dos clientes
+		if (filaVIP == 0) sem_post(&guiche); //se não existir alguém na fila VIP então desbloqueia o semáforo guiche
+		pthread_mutex_unlock(&mutex);
 		return NULL;
 	}
 
-	num_emb++;
+	numEmbarque++; //se não desiste então aumento o número de clientes embarcados
 
-	if ( num_emb < CAPACIDADE_CARROS)
+	printf("O cliente %d entrou na zona de embarque.\n", numClienteVIP);
+	sprintf(buffer_c, "%d ENTRA_EMBARQUE %d 1\n", (int)(time(0)-temp_i), numClienteVIP);
+	send(sockfd, buffer_c, sizeof(buffer_c), 0);
 
-
-	printf("O cliente %d entrou na zona de embarque.\n",num_cli);
-	sprintf(buffer_c, "%d ENTRA_EMBARQUE %d 0\n", (int)(time(0)-temp_i), num_cli);
-	send(sockfd,buffer_c,sizeof(buffer_c),0);
-
-	car = carro;
-	printf("O cliente %d entrou no carro %d.\n", num_cli, car);
-	sprintf(buffer_c, "%d EMBARQUE %d %d\n", (int)time(0), num_cli, car);
-	send(sockfd,buffer_c,sizeof(buffer_c),0);
+	if (filaVIP == 0 && numEmbarque < CAPACIDADE_CARROS)
+		sem_post(&guiche); //desbloqueia o semaforo guiche
+    pthread_mutex_unlock(&mutex); //desbloqueia trinco
 
 
-	printf("O cliente %d saiu do carro %d.\n", num_cli, car);
-	sprintf(buffer_c, "%d DESEMBARQUE %d %d\n", (int)time(0), num_cli, car);
-	send(sockfd,buffer_c,sizeof(buffer_c),0);
+	sem_wait(&embarqueCarro); //bloqueia semáforo
+	pthread_mutex_lock(&mutex); //bloqueia trinco
 
+	carro2v = carro;
+	printf("O cliente %d entrou no carro %d.\n", numClienteVIP, carro2v);
+	sprintf(buffer_c, "%d EMBARQUE %d %d\n", (int)time(0), numClienteVIP, carro2v);
+	send(sockfd, buffer_c, sizeof(buffer_c), 0);
+	pthread_mutex_unlock(&mutex);//desbloqueia trinco
+	sem_wait(&desembarqueCarro);//bloqueia semáforo
+	pthread_mutex_lock(&mutex);//bloqueia trinco
+	printf("O cliente %d saiu do carro %d.\n", numClienteVIP, carro2v);
+	sprintf(buffer_c, "%d DESEMBARQUE %d %d\n", (int)time(0), numClienteVIP, carro2v);
+	send(sockfd, buffer_c, sizeof(buffer_c), 0);
+	sem_post(&embarqueCarro);//desbloqueia semáforo embarqueCarro
+	pthread_mutex_unlock(&mutex);//desbloqueia trinco
 
 	return NULL;
 }
@@ -94,114 +140,253 @@ void * tarefa_cliente(void * ptr){
 
 
 
-void * tarefa_carro(void * ptr){
 
+
+
+
+
+
+// ------------------------------------- CLIENTE NORMAL ----------------------------------------------
+void * clienteNormal(void *ptr){
 	pthread_detach(pthread_self());
-	int id = num_carro++;
+	int carro2v, num;
+	time_t temp_i;
 	char buffer_c[256];
-	time_t hora_partida, hora_i;
+	int tempoDeEspera = rand()%10; // entre 0 e 10 minutos de espera
+
+
+	//...secção crítica....
+	pthread_mutex_lock(&mutex); //lock trinco
+
+	int numCli = numCliente++;
+	printf("O cliente %d chegou a fila de espera.\n", numCli);
+	sprintf(buffer_c, "%d CHEGADA %d 0\n", (int)time(0), numCli);
+	send(sockfd,buffer_c,sizeof(buffer_c),0);
+
+	temp_i = time(0);
+
+	pthread_mutex_unlock(&mutex);//unlock trinco
+	//...fim da secção crítica...
+
+	sem_wait(&guiche);//lock semáforo
+	pthread_mutex_lock(&mutex);//lock trinco
+
+
+	//--------------DESISTE POR TEMPO---------------------
+	if((int)(time(0) - temp_i) > tempoDeEspera){
+		num = rand()%100;
+		if(num <= PROB_DESISTE_ESPERA){
+			if(tempoDeEspera == 1) printf("O cliente %d desistiu ao fim de %d minuto a espera.\n", numCli, tempoDeEspera);
+			else printf("O cliente %d desistiu ao fim de %d minutos a espera.\n", numCli, tempoDeEspera);
+			sprintf(buffer_c, "%d DESISTE_FILA %d 0\n", (int)time(0), numCli);
+			send(sockfd,buffer_c,sizeof(buffer_c),0);
+
+			sem_post(&guiche);//unlock semáforo
+			pthread_mutex_unlock(&mutex);//unlock trinco
+			return NULL;
+		}
+	}
+	pthread_mutex_unlock(&mutex); //unlock trinco
+
+	sem_wait(&semClientes);//lock semáforo
+	pthread_mutex_lock(&mutex); //lock trinco
+
+
+
+	//------------DESISTE POR MEDO-------------
+	num = rand()%100;
+	if(num <= PROB_DESISTE_MEDO){
+		printf("O cliente %d entrou na zona de embarque.\n", numCli);
+		printf("O cliente %d desistiu porque ficou com medo.\n", numCli);
+		sprintf(buffer_c, "%d DESISTE_EMBARQUE\n", (int)time(0));
+		send(sockfd, buffer_c, sizeof(buffer_c), 0);
+		sem_post(&semClientes); //lock semáforo
+		if (filaVIP == 0) sem_post(&guiche); //se não existe ninguém na fila VIP bloqueia o semáforo Guiche
+		pthread_mutex_unlock(&mutex);//unlock trinco
+		return NULL;
+	}
+
+	numEmbarque++; //incrementa o número de passageiros na zona de embarque
+
+
+	if (filaVIP == 0 && numEmbarque < CAPACIDADE_CARROS) sem_post(&guiche); //se não existem pessoas na fila VIP e existe espaço no carro unlock semaforo
+
+	printf("O cliente %d entrou na zona de embarque.\n", numCli);
+	sprintf(buffer_c, "%d ENTRA_EMBARQUE %d 0\n", (int)(time(0)-temp_i), numCli);
+	send(sockfd, buffer_c, sizeof(buffer_c),0);
+	pthread_mutex_unlock(&mutex);//unlock trinco
+
+	sem_wait(&embarqueCarro);//lock semáforo
+	pthread_mutex_lock(&mutex);//lock trinco
+	carro2v = carro;
+	printf("O cliente %d entrou no carro %d.\n", numCli, carro2v);
+	sprintf(buffer_c, "%d EMBARQUE %d %d\n", (int)time(0), numCli, carro2v);
+	send(sockfd,buffer_c,sizeof(buffer_c),0);
+	pthread_mutex_unlock(&mutex);//unlock trinco
+
+	sem_wait(&desembarqueCarro);//lock semáforo carro
+	pthread_mutex_lock(&mutex);//lock trinco
+	printf("O cliente %d saiu do carro %d.\n", numCli, carro2v);
+	sprintf(buffer_c, "%d DESEMBARQUE %d %d\n", (int)time(0), numCli, carro2v);
+	send(sockfd,buffer_c,sizeof(buffer_c),0);
+	sem_post(&embarqueCarro);//unlock semáforo
+	pthread_mutex_unlock(&mutex);//unlock trinco
+
+	return NULL;
+}
+
+
+
+
+
+
+// ----------------------------------------------- CARRO --------------------------------------------------
+void * funcaoCarro(void *ptr){
+	pthread_mutex_lock(&mutex);
+	pthread_detach(pthread_self());
+	int id = numCarro++;
+	char buffer_c[256];
+	time_t timestampPartida, hora_i;
 	char variavel[20] = "carro";
+	pthread_mutex_unlock(&mutex);
 
 
-
-	void inicia_viagem(){
+	void comecaViagem(){
 		int i;
 		for(i = 0; i < CAPACIDADE_CARROS; i++)
-		printf("O carro %d iniciou viagem.\n", id);
+			sem_post(&embarqueCarro);//unlock semáforo quando inicia a viagem
+
+		printf("O carro %d iniciou a viagem.\n", id);
 		sprintf(buffer_c, "%d ARRANQUE %d\n", (int)time(0), id);
 		send(sockfd,buffer_c,sizeof(buffer_c),0);
-		hora_partida = time(0);
-		while((int)(time(0) - hora_partida) < TEMPO_VIAGEM);
+
+		sem_post(&carroControlo); //abre semaforo dos carros
+		timestampPartida = time(0);
+		pthread_mutex_unlock(&mutex);
+		while((int)(time(0) - timestampPartida) < TEMPO_VIAGEM); // tempo de viagem
+		pthread_mutex_lock(&mutex);
 		printf("O carro %d terminou a viagem e chegou a zona de desembarque.\n", id);
 		sprintf(buffer_c, "%d FINAL_VIAGEM %d\n", (int)time(0), id);
-		send(sockfd,buffer_c,sizeof(buffer_c),0);
+		send(sockfd, buffer_c, sizeof(buffer_c), 0);
+		for(i = 0; i < CAPACIDADE_CARROS; i++)
+			sem_post(&desembarqueCarro); //desbloquear o semáforo para cada cliente
 	}
 
 
+	//loop infinito
 	while(1){
+		pthread_mutex_lock(&mutex);
 		printf("O carro %d ficou em lista de espera.\n", id);
 		sprintf(buffer_c, "%d ESPERA %d\n", (int)time(0), id);
-		send(sockfd,buffer_c,sizeof(buffer_c),0);
-		printf("O carro %d chegou a zona de embarque.\n", id);
-		sprintf(buffer_c, "%d DISPONIVEL %d\n", (int)time(0), id);
-		send(sockfd,buffer_c,sizeof(buffer_c),0);
+		send(sockfd, buffer_c, sizeof(buffer_c), 0);
+		pthread_mutex_unlock(&mutex);
+		sem_wait(&carroControlo); // espera pelo semaforo dos carros
+		pthread_mutex_lock(&mutex);
+		printf("O carro %d chegou à zona de embarque.\n", id);
+		sprintf(buffer_c, "%d DISPONÍVEL %d\n", (int)time(0), id);
+		send(sockfd, buffer_c, sizeof(buffer_c), 0);
 		int i;
-		num_emb = 0;
+		numEmbarque = 0;
+		sem_getvalue(&guiche, &i); //se o semáforo está bloqueado o valor i é 0
+		if(filaVIP == 0 && i == 0) sem_post(&guiche);  //se não existem pessoas na vila VIP e o semáforo está bloqueado
+		for(i = 0; i < CAPACIDADE_CARROS; i++) sem_post(&semClientes); //desbloqueia o semáforo clientes enquanto existem pessoas na fila
 
-		if(i == 0)
-		for(i = 0; i < CAPACIDADE_CARROS; i++)
+
 		carro = id;
 		hora_i = time(0);
 
 		if(time(0) > start + TEMPO_SIMULACAO){
+			pthread_mutex_unlock(&mutex);
 			usleep(100000);
-			if(num_emb == 0){
-				printf("O parque ja fechou e nao tem clientes em espera.\n");
+			pthread_mutex_lock(&mutex);
+
+			if(numEmbarque == 0){
 				printf("O carro %d vai ser arrumado.\n", id);
-				carros_em_servico--;
+				carrosEmUso--;
+				sem_post(&carroControlo);
+				pthread_mutex_unlock(&mutex);
 				return NULL;
 			}
 
 			for(i = 0; i < CAPACIDADE_CARROS; i++)
+				sem_post(&embarqueCarro);
+
 			printf("O carro %d iniciou viagem.\n", id);
 			sprintf(buffer_c, "%d ARRANQUE %d\n", (int)time(0), id);
 			send(sockfd,buffer_c,sizeof(buffer_c),0);
 
-
-			hora_partida = time(0);
-			while((int)(time(0) - hora_partida) < TEMPO_VIAGEM);
-			printf("O carro %d terminou a viagem e chegou a zona de desembarque.\n", id);
+			sem_post(&carroControlo); //abre semaforo dos carros
+			timestampPartida = time(0);
+			pthread_mutex_unlock(&mutex);
+			while((int)(time(0) - timestampPartida) < TEMPO_VIAGEM); // tempo de viagem
+			pthread_mutex_lock(&mutex);
+			printf("O carro %d completou a viagem e chegou à zona de desembarque.\n", id);
 			sprintf(buffer_c, "%d FINAL_VIAGEM %d\n", (int)time(0), id);
 			send(sockfd,buffer_c,sizeof(buffer_c),0);
+			for(i = 0; i < CAPACIDADE_CARROS; i++)
+				sem_post(&desembarqueCarro);
 		}
 		else{
-			while(num_emb < CAPACIDADE_CARROS && time(0) < start + TEMPO_SIMULACAO);
-			if(num_emb == CAPACIDADE_CARROS){
+			pthread_mutex_unlock(&mutex);
+			while(numEmbarque < CAPACIDADE_CARROS && time(0) < start + TEMPO_SIMULACAO);
+			pthread_mutex_lock(&mutex);
+			if(numEmbarque == CAPACIDADE_CARROS){
+				pthread_mutex_unlock(&mutex);
 					usleep(100000);
-					inicia_viagem();
+				pthread_mutex_lock(&mutex);
+
+					comecaViagem();
 			}
 			else{
+				pthread_mutex_unlock(&mutex);
 					usleep(100000);
+				pthread_mutex_lock(&mutex);
 
-					if(num_emb == 0){
-						printf("O parque ja fechou e nao tem clientes em espera.\n");
-						printf("O carro %d vai ser arrumado.\n", id);
-						carros_em_servico--;
+					if(numEmbarque == 0){
+						printf("O carro %d está a ser guardado.\n", id);
+						carrosEmUso--;
+						sem_post(&carroControlo);
+						pthread_mutex_unlock(&mutex);
 						return NULL;
 					}
-					inicia_viagem();
+
+					comecaViagem();
 			}
 		}
+	pthread_mutex_unlock(&mutex);
 	}
 	return NULL;
 }
 
-// COMUNICAÇÃO COM MONITOR
-void * monitor_link(void * arg){
-	struct sockaddr_un cli_addr;
-	int done, n, id;
 
-	int sockfd = * ((int *) arg), clilen = sizeof(cli_addr);
+
+
+//--------------------------------  tratamento dos pedidos do monitor ---------------------------------
+void * menuMonitorCmd(void *arg){
+	struct sockaddr_un cli_addr;
+	int acabou, n, id;
+
+	int sockfd =*((int *) arg), clilen=sizeof(cli_addr);
 
 	char buffer[256];
 
-	//Ciclo que fica a espera dos pedidos dos Monitor, para lhe dar resposta adequada
+	//ciclo do monitor
 	while(1){
-		done=0;
+		acabou=0;
 		if((n=recv(sockfd, buffer, sizeof(buffer), 0)) <= 0){
 			if(n < 0)
 				perror("recv error");
-			done=1;
+			acabou = 1;
 		}
 		buffer[n]='\0';
 
 		if(!strcmp(buffer, "termina\n")){
-			corre=0;
+			emExecucao = 0;
 			exit(1);
 		}
 		else{
 			if(!strcmp(buffer, "inicio\n"))
-				corre = 1;
+				emExecucao = 1;
 			if(!strcmp(buffer, "pausa\n"))
 				pausa = 1;
 			if(!strcmp(buffer, "retomar\n"))
@@ -211,91 +396,130 @@ void * monitor_link(void * arg){
 	return NULL;
 }
 
+
+
+
+
+//------------------------------------------ MAIN ------------------------------------------
 int main(int argc, char *argv[]){
 
 	srand(time(NULL));
 
-	num_cliente = 1;
-	num_carro = 1;
-	carro = NUMERO_CARROS;
-	num_emb = 0;
+	numCliente=1;
+	numCarro=1;
+	carro = 1;
+	numEmbarque = 0;
+	filaVIP = 0;
 
 	if(argc<2){
-		printf("ERRO: FICHEIRO DE CONFIGURAÇÃO EM FALTA");
+		printf("ERRO: Não introduziu o ficheiro de configuração da simulação\n");
 		return 1;
 	}
 	else {
 
-		//interpretacao do ficheiro de configuraçao
-		int * conf = leitura_configuracao(argv[1]);
-		INICIO_FINAL = conf[0];
-		TEMPO_SIMULACAO = conf[1];
-		TEMPO_MEDIO_CHEGADA_CLIENTES = conf[2];
-		PROB_DESISTE_ESPERA	= conf[3];
-		TEMPO_VIAGEM = conf[7];
-		CAPACIDADE_CARROS = conf[8];
-		NUMERO_CARROS	= conf[9];
+		// LEITURA DO FICHEIRO DE CONFIGURAÇÃO
+		int * configVal = leituraFicheiroConfig(argv[1]);
+		INICIO_FINAL									= configVal[0];
+		TEMPO_SIMULACAO								= configVal[1];
+		TEMPO_MEDIO_CHEGADA_CLIENTES	= configVal[2];
+		PROB_DESISTE_ESPERA						= configVal[3];
+		PROB_DESISTE_ESPERA_VIP				= configVal[4];
+		PROB_DESISTE_MEDO							= configVal[5];
+		PROB_DESISTE_MEDO_VIP					= configVal[6];
+		TEMPO_VIAGEM									= configVal[7];
+		CAPACIDADE_CARROS							= configVal[8];
+		NUMERO_CARROS									= configVal[9];
 
 
 
 
-		//criacao do socket e ligação
+		// Inicializar semáforos
+		sem_init (&guiche, 0, 0);
+		sem_init (&semClientes, 0, 0);
+		sem_init (&embarqueCarro, 0, CAPACIDADE_CARROS);
+		sem_init (&desembarqueCarro, 0, 0);
+		sem_init (&carroControlo, 0, 1);
+
+
+		//Cria socket stream
 		if((sockfd=socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
-			perror("Simulador: cant open socket stream");
+			perror("Can't open socket stream");
+
+
+		/* Primeiro uma limpeza preventiva!
+		   Dados para o socket stream: tipo + nome do ficheiro.
+	     O ficheiro identifica o servidor */
 		serv_addr.sun_family=AF_UNIX;
 		strcpy(serv_addr.sun_path, UNIXSTR_PATH);
 		servlen=strlen(serv_addr.sun_path)+sizeof(serv_addr.sun_family);
+
+
+		/* Tenta estabelecer uma ligação. Só funciona se o servidor tiver
+         sido lançado primeiro (o servidor tem de criar o ficheiro e associar
+         o socket ao ficheiro) */
 		if(connect(sockfd, (struct sockaddr *) &serv_addr, servlen) < 0)
-			perror("connect error");
+			perror("Connection error");
 
-		//Criacao da tarefa que ira tratar dos pedidos enviados pelo Monitor
+
+		//monitor
 		pthread_t thread;
-		pthread_create(&thread, NULL, &monitor_link, &sockfd);
+		pthread_create(&thread, NULL, &menuMonitorCmd, &sockfd);
 
-		while(!corre);
+		while(!emExecucao);
 
-		int i, r, h;
+		int i, i1, i2;
 		char buffer[256];
-		carros_em_servico = NUMERO_CARROS;
+		carrosEmUso = NUMERO_CARROS;
 
 
 		start = time(0);
-		sprintf(buffer, "%d INICIO\n", (int)start);
+		sprintf(buffer, "%d INÍCIO\n", (int)start);
 		send(sockfd,buffer,sizeof(buffer),0);
 
 		TEMPO_SIMULACAO *= 60;
 
+		//thread carro
 		for(i = 0; i < NUMERO_CARROS; i++){
-			pthread_create(&thread, NULL, &tarefa_carro, &sockfd);
+			pthread_create(&thread, NULL, &funcaoCarro, &sockfd);
 		}
 
 		while((int)(time(0) - start) < TEMPO_SIMULACAO){
-				pthread_create(&thread, NULL, &tarefa_cliente, &sockfd);
-
-			h = rand()%3;
-			h = h * 100000;
-				h = 0 - h;
-			usleep((TEMPO_MEDIO_CHEGADA_CLIENTES*1000000) + h);
+			i1 = rand()%100;
+			if (i1 <= 10){
+				//thread cliente prioritário
+				pthread_create(&thread, NULL, &clienteVIP, &sockfd);
+			}
+			else{
+				//thread cliente normal
+				pthread_create(&thread, NULL, &clienteNormal, &sockfd);
+			}
+			i1 = rand()%1;
+			i2 = rand()%3;
+			i2 = i2 * 100000;
+			if(i1 == 0)
+				i2 = 0 - i2;
+			usleep((TEMPO_MEDIO_CHEGADA_CLIENTES*1000000) + i2);
 
 			if(pausa){
-				controlo_pausa = 1;
+				pthread_mutex_lock(&mutex);
+				pauseControlo = 1;
 			}
 			while(pausa);
-			if(controlo_pausa){
-				controlo_pausa = 0;
+			if(pauseControlo){
+				pthread_mutex_unlock(&mutex);
+				pauseControlo = 0;
 			}
 
 		}
 
-		while(carros_em_servico>0);
-		printf("\nO parque já fechou e não existem mais clientes em espera.\n");
-		printf("\nSimulação terminada.\n");
+		while(carrosEmUso>0);
+		printf("\nFim de simulação.\n");
 		sprintf(buffer,"%d FIM \n",(int) time(0));
 		send(sockfd,buffer,sizeof(buffer),0);
 
-		while(corre);
-		close(sockfd);
+		while(emExecucao);
 
+		close(sockfd);
 	}
 	return 0;
 }

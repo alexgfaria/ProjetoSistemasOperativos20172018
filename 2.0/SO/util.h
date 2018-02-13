@@ -5,19 +5,19 @@
 
 
 
-int * leitura_configuracao(char * file){
-	int * a = (int *)malloc(sizeof(int) * 10);
+int * leituraFicheiroConfig(char * file){
+	int * anum = (int *)malloc(sizeof(int) * 10);
 	FILE * fp = fopen (file, "r");
 	if(fp == NULL ){
-		printf("ERRO: FICHEIRO DE CONFIGURAÇÃO.\n");
+		printf("ERRO AO ABRIR O FICHEIRO DE CONFIGURAÇÃO!\n");
 		abort();
 	}
-	int num, i = 0;
+	int num, i=0;
 	char name[100], buff[500];
-	while (fgets( buff, sizeof buff, fp) != NULL) {
+	while (fgets( buff, sizeof buff, fp) != NULL){
 		if(sscanf(buff, "%[^=]=%d", name, &num) == 2)
-			a[i++]=num;
+			anum[i++]=num;
 	}
 	fclose(fp);
-	return a;
+	return anum;
 }

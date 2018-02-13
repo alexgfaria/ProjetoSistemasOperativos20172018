@@ -4,4 +4,4 @@
 
 #define UNIXSTR_PATH "./s.unixstr"
 #define UNIXDG_PATH  "/tmp/s.unixdgx"
-#define UNIXDG_TMP   "/tmp/ALEX23323223"
+#define UNIXDG_TMP   "/tmp/ALEX2SO2021114ALEX"

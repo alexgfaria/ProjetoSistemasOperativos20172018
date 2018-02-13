@@ -3,92 +3,140 @@
 #include "unix.h"
 #include "util.h"
 
-//apontador para o ficheiro onde será escrito o relatório da simulação
+
 FILE * relatorio;
 
-//variáveis globais para a estatística
-int num_fila_normal = 0,
-		num_carros = 2,
-		num_cli_normal = 0,
-		desiste_espera = 0,
-		desiste_medo = 0,
-		num_viagens = 0,
-		inicio_simulacao = 0,
-		fim_simulacao = 0,
-		soma_espera_normal = 0,
-		esperou_normal = 0;
-
-//VAR DE CONTROLO
-int emExecucao = 0, bloqueado = 0;
 
 
-void estatistica(){
-	if(emExecucao && !bloqueado)
-		printf(" 1. Estado atual: Simulacao a decorrer.\n");
-	else
-	{
-		if(bloqueado)
-			printf(" 1. Estado atual: Simulação em pausa.\n");
+
+int numFilaNormal = 0, numFilaVIP	= 0, numClientesNormal = 0, numClientesVIP = 0, desisteEspera = 0, desisteMedo = 0, numViagens = 0, beginSim = 0, endSim = 0, esperaNormalResultado = 0, esperaVIPResultado = 0, esperouVIP = 0, esperouNormal = 0 /*, numCarros = 0*/;
+
+
+int emExecucao = 0, pausa = 0;
+
+
+
+
+
+
+
+void stats(){
+	if(emExecucao && !pausa)
+		printf("- Estado atual=> Simulação a decorrer!\n");
+	else {
+		if(pausa)
+			printf("- Estado atual=> Simulação pausada!\n");
 		else
-			printf(" 1. Estado atual: Simulação terminada.\n");
+			printf("- Estado atual=> Simulação terminada!\n");
 	}
-	printf(" 2. Tamanho atual da fila de espera para Clientes Normais: %d\n", num_fila_normal);
-	printf(" 4. Número atual de Carros: %d\n", num_carros);
-	printf(" 5. Clientes Normais: %d\n", num_fila_normal);
-	printf(" 8. Desistências na Fila de espera: %d\n", desiste_espera);
-	printf(" 9. Desistências Por medo: %d\n", desiste_medo);
-	printf("10. Total de desistências: %d\n", desiste_espera + desiste_medo);
-	printf("11. Número de viagens: %d\n", num_viagens);
+	printf("- Tamanho da fila de espera para clientes normais: %d\n", numFilaNormal);
+	printf("- Tamanho da fila de espera para clientes prioritários: %d\n", numFilaVIP);
+	//printf("- Número de carros: %d\n", numCarros);
+	printf("- Clientes normais: %d\n", numFilaNormal);
+	printf("- Clientes prioritários: %d\n", numFilaVIP);
+	printf("- Total de clientes: %d\n", numFilaNormal + numFilaVIP);
+	printf("- Desistências na fila de espera: %d\n", desisteEspera);
+	printf("- Desistências por medo: %d\n", desisteMedo);
+	printf("- Total de desistências: %d\n", desisteEspera + desisteMedo);
+	printf("- Número de viagens: %d\n", numViagens);
+	if(esperouNormal){
+		printf("- Tempo médio de espera de clientes normais: %.1f minutos\n", (float)esperaNormalResultado/(float)esperouNormal);
+	}
+	else {
+		printf("- Tempo médio de espera de clientes normais: 0 minutos\n");
+	}
+	if(esperouVIP){
+		printf("- Tempo médio de espera de clientes prioritários: %.1f minutos\n", (float)(esperaVIPResultado/esperouVIP));
+	}
+	else {
+		printf("- Tempo médio de espera de clientes prioritários: 0 minutos\n");
+	}
+}
+
+void escreveStats(){
+	FILE * logResultado = fopen("log.txt", "w");
+	fprintf(logResultado, "- Estado atual=> Simulação terminada!\n");
+	fprintf(logResultado, "- Tamanho da fila de espera para clientes normais: %d\n", numFilaNormal);
+	fprintf(logResultado, "- Tamanho da fila de espera para clientes prioritários: %d\n", numFilaVIP);
+	//printf("- Número de carros: %d\n", numCarros);
+	fprintf(logResultado, "- Clientes normais: %d\n", numFilaNormal);
+	fprintf(logResultado, "- Clientes prioritários: %d\n", numFilaVIP);
+	fprintf(logResultado, "- Total de clientes: %d\n", numFilaNormal + numFilaVIP);
+	fprintf(logResultado, "- Desistências na fila de espera: %d\n", desisteEspera);
+	fprintf(logResultado, "- Desistências por medo: %d\n", desisteMedo);
+	fprintf(logResultado, "- Total de desistências: %d\n", desisteEspera + desisteMedo);
+	fprintf(logResultado, "- Número de viagens: %d\n", numViagens);
+	if(esperouNormal){
+		fprintf(logResultado, "- Tempo médio de espera de clientes normais: %.1f minutos\n", (float)esperaNormalResultado/(float)esperouNormal);
+	}
+	else {
+		fprintf(logResultado, "- Tempo médio de espera de clientes normais: 0 minutos\n");
+	}
+	if(esperouVIP){
+		fprintf(logResultado, "- Tempo médio de espera de clientes prioritários: %.1f minutos\n", (float)(esperaVIPResultado/esperouVIP));
+	}
+	else {
+		fprintf(logResultado, "- Tempo médio de espera de clientes prioritários: 0 minutos\n");
+	}
+	fclose(logResultado);
 }
 
 
-//função que fica à escuta das mensagens do simulador
 
-void *escuta_comunicacao(void *arg)
-{
-	int sockfd=*((int *) arg);
-	int msg, tempo=0, num_comandos, id, com;
-	char buffer[256],comando[20];
+
+
+
+
+
+//função que fica à escuta das mensagens do simulador
+void * comunicacaoComSimulador(void * arg){
+	int sockfd = * ((int *) arg);
+	int msg, tempo = 0, num_comandos, id, com;
+	char buffer[256], comando[20];
 
 	//ciclo que fica à espera de mensagens do simulador
-
-	while(1)
-	{
-		if((msg=recv(sockfd, buffer, sizeof(buffer), 0)) <= 0)
-		{
+	while(1){
+								// Socket, buffer,  length,       flags
+								//receive a message from a connected socket
+		if((msg = recv(sockfd, buffer, sizeof(buffer), 0)) <= 0){
 			if(msg < 0)
 				perror("recv");
 		}
-		else
-		{
-           	buffer[msg]='\0';
-			fprintf(relatorio,"%s", buffer);
+		else {
 
+			buffer[msg]='\0';
+			fprintf(relatorio,"%s", buffer);
 			num_comandos = sscanf(buffer,"%d %s %d %d", &tempo, comando, &id, &com);
 
-			if(num_comandos>0)
-			{
-				if(!strcmp(comando,"INICIO"))
-				{
-					inicio_simulacao = tempo;
+			//se foi inserido um comando
+			if(num_comandos > 0){
+				if(!strcmp(comando,"INICIO")){
+					beginSim = tempo;
 				}
-				else if(!strcmp(comando,"CHEGADA"))
-				{
-						num_fila_normal++;
+				else if(!strcmp(comando,"CHEGADA")){
+					if(com)
+						numFilaVIP++;
+					else
+						numFilaNormal++;
 				}
-				else if(!strcmp(comando,"DESISTE_FILA"))
-				{
-					desiste_espera++;
+				else if(!strcmp(comando,"DESISTE_FILA")){
+					desisteEspera++;
 				}
-				else if(!strcmp(comando,"ENTRA_EMBARQUE"))
-				{
-						soma_espera_normal += tempo;
-						esperou_normal++;
-
+				else if(!strcmp(comando,"ENTRA_EMBARQUE")){
+					if(com){
+						esperaVIPResultado += tempo;
+						esperouVIP++;
+						numViagens++;
+					}
+					else{
+						esperaNormalResultado += tempo;
+						esperouNormal++;
+						numViagens++;
+					}
 				}
-				else if(!strcmp(comando,"DESISTE_EMBARQUE"))
-				{
-					desiste_medo++;
+				else if(!strcmp(comando,"DESISTE_EMBARQUE")){
+					desisteMedo++;
+					numViagens--;
 				}
 			}
 		}
@@ -97,82 +145,106 @@ void *escuta_comunicacao(void *arg)
 }
 
 
-//função principal do monitor
 
-int main(int argc, char *argv[])
-{
+
+
+
+
+// ----------------------- MAIN --------------------------------
+
+int main(int argc, char * argv[]){
 	struct sockaddr_un serv_addr, cli_addr;
 	int sockfd, servlen, newsockfd;
-
-	int clilen=sizeof(cli_addr);
+	int clilen = sizeof(cli_addr);
 	char buffer[256];
-	char menu[512] = "----------------------------------\n| comandos disponiveis no monitor|\n----------------------------------\n| inicio - Comecar simulacao     |\n| pausa  - Pausar simulacao      |\n| retomar - Retomar simulacao    |\n| estado - Estado da simulacao   |\n| sair   - Sair do monitor       |\n----------------------------------\n";
+	char menu[512] = "----------------------------------\n|            MONITOR             |\n----------------------------------\n| inicio  - Iniciar simulação    |\n| pausa   - Pausar simulação     |\n| retomar - Retomar simulação    |\n| estado  - Estado da simulação  |\n| sair    - Sair do monitor      |\n----------------------------------\n";
 
-	//Criacao do socket UNIX
-	if((sockfd=socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
-		perror("cant open socket stream");
-	serv_addr.sun_family=AF_UNIX;
+/*
+									"----------------------------------\n
+									|            MONITOR             |\n
+									----------------------------------\n
+									| inicio  - Iniciar simulação    |\n
+									| pausa   - Pausar simulação     |\n
+									| retomar - Retomar simulação    |\n
+									| estado  - Estado da simulação  |\n
+									| sair    - Sair do monitor      |\n
+									----------------------------------\n";
+*/
+
+	//cria socket stream
+	if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+		perror("Failure opening socket stream");
+
+
+	//limpeza preventiva
+	serv_addr.sun_family = AF_UNIX;
 	strcpy(serv_addr.sun_path, UNIXSTR_PATH);
-	servlen=strlen(serv_addr.sun_path)+sizeof(serv_addr.sun_family);
+
+	/* O servidor é quem cria o ficheiro que identifica o socket.
+         Elimina o ficheiro, para o caso de algo ter ficado pendurado.
+         Em seguida associa o socket ao ficheiro.
+         A dimensão a indicar ao bind não â a da estrutura, pois depende
+         do nome do ficheiro */
+	servlen = strlen(serv_addr.sun_path)+sizeof(serv_addr.sun_family);
 	unlink(UNIXSTR_PATH);
 	if(bind(sockfd, (struct sockaddr *) &serv_addr, servlen) < 0)
-		perror("cant bind local address");
+		perror("can't bind local address");
+
+
+	//servidor pronto a aceitar 1 cliente para o socket stream
 	listen(sockfd, 1);
 
-	if((newsockfd=accept(sockfd, (struct sockaddr *) &cli_addr, &clilen)) < 0)
+
+	/* Não esquecer que quando o servidor aceita um cliente cria um
+		   socket para comunicar com ele. O primeiro socket (sockfd) fica
+		   Ä espera de mais clientes */
+	if((newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen)) < 0)
 		perror("accept error");
 
-	//criacao da tarefa que ira tratar da comunicação com o simulador
-
+	//Tarefa da comunic com o sim
 	pthread_t thread;
-	pthread_create(&thread, NULL, &escuta_comunicacao, &newsockfd);
+	pthread_create(&thread, NULL, &comunicacaoComSimulador, &newsockfd);
 
 	//Ciclo que espera pela informacao vinda da consola
-
-	printf("%s",menu);
-
+	printf("%s", menu);
 	unlink("relatorio.log");
-	relatorio=fopen("relatorio.log", "a");
+	relatorio = fopen("relatorio.log", "a");
 
-	do
-	{
+	do{
 		fgets(buffer, sizeof(buffer), stdin);
 
-
-
-		if(send(newsockfd, buffer, sizeof(buffer), 0) == -1)
-		{
+		if(send(newsockfd, buffer, sizeof(buffer), 0) == -1){
 			perror("send");
 			exit(1);
 		}
 
-		if(!strcmp (buffer, "inicio\n"))
-		{
-			emExecucao=1;
-			bloqueado=0;
+
+		//strcmp devolve 0 se as strings forem iguais
+		if(!strcmp (buffer, "inicio\n")){
+			emExecucao = 1;
+			pausa = 0;
 		}
-		if(!strcmp (buffer, "pausa\n"))
-		{
-			bloqueado=1;
-			printf("Simulacao em pausa - \"retomar\" para continuar\n");
+		if(!strcmp (buffer, "pausa\n")){
+			pausa = 1;
+			printf("Simulação em pausa - \"retomar\" para continuar\n");
 		}
-		if(!strcmp (buffer, "retomar\n"))
-		{
-			bloqueado=0;
+		if(!strcmp (buffer, "retomar\n")){
+			pausa = 0;
 		}
-		if(!strcmp (buffer, "estado\n"))
-		{
-			estatistica();
+		if(!strcmp (buffer, "estado\n")){
+			stats();
 		}
 	}
 	while(strcmp (buffer, "sair\n"));
 
 	emExecucao = 0;
-	bloqueado = 0;
+	pausa = 0;
 
 	printf("\nExecução terminou.\n\n");
-	estatistica();
+	stats();
 	fclose(relatorio);
+	//fprintf(logResultado, %s, stats());
+	escreveStats();
 	close(sockfd);
 
 	return 0;
